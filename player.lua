@@ -11,9 +11,18 @@ function Player.new(x, y)
     self.speed = 200  -- pixels per second
     self.spriteSheet = love.graphics.newImage("assets/knight.png")
     
+    -- Physics properties
+    self.velocity = {x = 0, y = 0}
+    self.gravity = 1000  -- pixels per second squared
+    self.jumpSpeed = -500  -- negative because up is negative Y
+    self.onGround = false
+    self.width = 32 * 3  -- sprite width * scale
+    self.height = 32 * 3  -- sprite height * scale
+    
     -- Movement state
     self.isMoving = false
     self.isRolling = false
+    self.isJumping = false
     self.facingLeft = false  -- Track which direction player is facing
     
     -- Create anim8 grid (32x32 sprites in a 256x256 spritesheet = 8x8 grid)
@@ -33,27 +42,31 @@ function Player.new(x, y)
 end
 
 function Player:update(dt)
-    -- Handle WASD movement
-    local moving = false
+    -- Apply gravity
+    if not self.onGround then
+        self.velocity.y = self.velocity.y + self.gravity * dt
+    end
     
-    if love.keyboard.isDown("w") then
-        self.y = self.y - self.speed * dt
-        moving = true
-    end
-    if love.keyboard.isDown("s") then
-        self.y = self.y + self.speed * dt
-        moving = true
-    end
+    -- Handle horizontal movement
+    local moving = false
+    self.velocity.x = 0  -- Reset horizontal velocity each frame
+    
     if love.keyboard.isDown("a") then
-        self.x = self.x - self.speed * dt
-        self.facingLeft = true  -- Face left when moving left
+        self.velocity.x = -self.speed
+        self.facingLeft = true
         moving = true
     end
     if love.keyboard.isDown("d") then
-        self.x = self.x + self.speed * dt
-        self.facingLeft = false  -- Face right when moving right
+        self.velocity.x = self.speed
+        self.facingLeft = false
         moving = true
     end
+    
+    -- Apply velocities to position
+    self.x = self.x + self.velocity.x * dt
+    self.y = self.y + self.velocity.y * dt
+    
+    -- Ground check will be handled by level collision system
     
     -- Update movement state
     self.isMoving = moving
@@ -95,10 +108,22 @@ end
 
 function Player:keypressed(key)
     if key == "space" then
-        -- Only start rolling if not already rolling
+        -- Jump if on ground
+        if self.onGround then
+            self.velocity.y = self.jumpSpeed
+            self.onGround = false
+            self.isJumping = true
+            -- Play jump sound if available
+            if love.audio and love.filesystem.getInfo("assets/jump.wav") then
+                local jumpSound = love.audio.newSource("assets/jump.wav", "static")
+                jumpSound:play()
+            end
+        end
+    elseif key == "lshift" then
+        -- Roll action on shift
         if not self.isRolling then
             self.isRolling = true
-            self.rollAnimation:gotoFrame(1)  -- Reset roll animation to start
+            self.rollAnimation:gotoFrame(1)
         end
     end
 end
